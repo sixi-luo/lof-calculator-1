@@ -153,24 +153,30 @@ async function getIndexQuote(indexCode: string) {
   const markets = getIndexMarkets(indexCode)
   
   for (const market of markets) {
-    const secid = `${market}.${indexCode}`
-    const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f57,f58,f43,f169,f170,f60&ut=fa5fd1943c7b386f172d6893dbfba10b`
-    const text = await fetchURL(url)
-    if (!text) continue
-    
-    const data = JSON.parse(text)
-    if (!data.data) continue
-    
-    const d = data.data
-    const priceDivisor = market === '100' ? 1 : 100
-    
-    return {
-      code: d.f57 || indexCode,
-      name: d.f58 || '',
-      price: (d.f43 || 0) / priceDivisor,
-      change_percent: (d.f170 || 0) / 100,
-      change: (d.f169 || 0) / priceDivisor,
-      prev_close: (d.f60 || 0) / priceDivisor,
+    try {
+      const secid = `${market}.${indexCode}`
+      const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f57,f58,f43,f169,f170,f60&ut=fa5fd1943c7b386f172d6893dbfba10b`
+      const text = await fetchURL(url)
+      if (!text) continue
+      
+      const data = JSON.parse(text)
+      // 需要检查rc是否为0，且data存在
+      if (data.rc !== 0 || !data.data) continue
+      
+      const d = data.data
+      const priceDivisor = market === '100' ? 1 : 100
+      
+      return {
+        code: d.f57 || indexCode,
+        name: d.f58 || '',
+        price: (d.f43 || 0) / priceDivisor,
+        change_percent: (d.f170 || 0) / 100,
+        change: (d.f169 || 0) / priceDivisor,
+        prev_close: (d.f60 || 0) / priceDivisor,
+      }
+    } catch (e) {
+      console.error('getIndexQuote error:', e)
+      continue
     }
   }
   
@@ -185,42 +191,48 @@ async function getIndexKline(indexCode: string, count: number = 30) {
   const markets = getIndexMarkets(indexCode)
   
   for (const market of markets) {
-    const secid = `${market}.${indexCode}`
-    const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=1&end=20500101&lmt=${count + 1}`
-    const text = await fetchURL(url)
-    if (!text) continue
-    
-    const data = JSON.parse(text)
-    if (!data.data?.klines) continue
-    
-    const klines = data.data.klines
-    const result = []
-    
-    for (let i = 0; i < klines.length; i++) {
-      const parts = klines[i].split(',')
-      const date = parts[0]
-      const close = parseFloat(parts[2])
+    try {
+      const secid = `${market}.${indexCode}`
+      const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=1&end=20500101&lmt=${count + 1}`
+      const text = await fetchURL(url)
+      if (!text) continue
       
-      let changePercent = null
-      if (i > 0) {
-        const prevParts = klines[i - 1].split(',')
-        const prevClose = parseFloat(prevParts[2])
-        if (close && prevClose && prevClose > 0) {
-          changePercent = parseFloat(((close - prevClose) / prevClose * 100).toFixed(2))
+      const data = JSON.parse(text)
+      // 需要检查rc是否为0，且klines存在
+      if (data.rc !== 0 || !data.data?.klines) continue
+      
+      const klines = data.data.klines
+      const result = []
+      
+      for (let i = 0; i < klines.length; i++) {
+        const parts = klines[i].split(',')
+        const date = parts[0]
+        const close = parseFloat(parts[2])
+        
+        let changePercent = null
+        if (i > 0) {
+          const prevParts = klines[i - 1].split(',')
+          const prevClose = parseFloat(prevParts[2])
+          if (close && prevClose && prevClose > 0) {
+            changePercent = parseFloat(((close - prevClose) / prevClose * 100).toFixed(2))
+          }
         }
+        
+        result.push({
+          date,
+          open: parseFloat(parts[1]),
+          close,
+          high: parseFloat(parts[3]),
+          low: parseFloat(parts[4]),
+          change_percent: changePercent,
+        })
       }
       
-      result.push({
-        date,
-        open: parseFloat(parts[1]),
-        close,
-        high: parseFloat(parts[3]),
-        low: parseFloat(parts[4]),
-        change_percent: changePercent,
-      })
+      return result
+    } catch (e) {
+      console.error('getIndexKline error:', e)
+      continue
     }
-    
-    return result
   }
   
   return []
