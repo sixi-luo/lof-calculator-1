@@ -13,6 +13,7 @@ const LOF_INDEX_MAP: Record<string, { index_code: string; index_name: string; co
   '513100': { index_code: 'NDX', index_name: '纳斯达克100', coefficient: 0.95 },
   '161125': { index_code: 'SPX', index_name: '标普500', coefficient: 0.95 },
   '513500': { index_code: 'SPX', index_name: '标普500', coefficient: 0.95 },
+  '501059': { index_code: '000824', index_name: '国企红利', coefficient: 0.9 },
   '161035': { index_code: '399989', index_name: '中证医疗', coefficient: 0.95 },
   '161028': { index_code: '399808', index_name: '中证新能源', coefficient: 0.95 },
   '161024': { index_code: '399967', index_name: '中证军工', coefficient: 0.95 },
@@ -27,6 +28,7 @@ const LOF_INDEX_MAP: Record<string, { index_code: string; index_name: string; co
   '164906': { index_code: 'H11136', index_name: '中国互联网50', coefficient: 0.95 },
   '164701': { index_code: 'AU9999', index_name: '黄金现货', coefficient: 0.99 },
   '160719': { index_code: 'AU9999', index_name: '黄金现货', coefficient: 0.99 },
+  '160119': { index_code: '000300', index_name: '沪深300', coefficient: 0.95 },
 }
 
 // 指数代码到市场代码的映射
@@ -151,6 +153,8 @@ function getIndexMarkets(indexCode: string): string[] {
 
 // 获取指数实时行情 - 带市场试换
 async function getIndexQuote(indexCode: string) {
+  if (!indexCode) return {}
+  
   // 优先尝试的市场顺序
   const markets = getIndexMarkets(indexCode)
   
@@ -181,6 +185,8 @@ async function getIndexQuote(indexCode: string) {
 
 // 获取指数K线 - 带市场试换
 async function getIndexKline(indexCode: string, count: number = 30) {
+  if (!indexCode) return []
+  
   // 优先尝试的市场顺序
   const markets = getIndexMarkets(indexCode)
   
@@ -257,10 +263,6 @@ export async function GET(request: NextRequest) {
       indexCodeToUse ? getIndexKline(indexCodeToUse, 30) : Promise.resolve([]),
     ])
     
-    // 调试
-    console.log('indexData:', indexData)
-    console.log('indexKlineData length:', indexKlineData?.length, 'first 3:', indexKlineData?.slice(0, 3))
-    
     const navData = navHistory[0] || {}
     if (navData && marketData.name) {
       navData.name = marketData.name
@@ -280,9 +282,8 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      // 匹配指数涨跌幅 - 添加日期兼容处理
+      // 匹配指数涨跌幅
       for (const ik of indexKlineData) {
-        // 直接匹配
         if (ik.date === nav.date) {
           indexChange = ik.change_percent
           break
@@ -308,11 +309,15 @@ export async function GET(request: NextRequest) {
       })
     }
     
-// 调试信息
-    console.log('indexCodeToUse:', indexCodeToUse)
-    console.log('indexKlineData sample:', indexKlineData.slice(0, 3))
-    console.log('navHistory sample:', navHistory.slice(0, 3))
-    console.log('历史数据index_change:', history.slice(0, 3).map(h => h.index_change))
+    // 更新tracking信息
+    if (isCustomIndex) {
+      trackingInfo = {
+        index_code: customIndexCode,
+        index_name: indexData.name || '自定义指数',
+        coefficient: 0.95,
+        is_custom: true,
+      }
+    }
     
     return NextResponse.json({
       nav: navData,
