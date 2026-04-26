@@ -131,15 +131,9 @@ function getIndexMarkets(indexCode: string): string[] {
     return [INDEX_MARKET_MAP[indexCode], '100']
   }
   
-  // 纯数字A股指数：优先深市，再沪市
+  // 纯数字A股指数：尝试深市、沪市、港股美股
   if (/^\d{6}$/.test(indexCode)) {
-    if (indexCode.startsWith('399') || indexCode.startsWith('0')) {
-      return ['0', '1']
-    } else if (indexCode.startsWith('6')) {
-      return ['1', '0']
-    } else {
-      return ['0', '1']
-    }
+    return ['0', '1', '100']
   }
   
   // 港股指数
