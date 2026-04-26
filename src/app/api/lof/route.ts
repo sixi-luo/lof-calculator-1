@@ -128,10 +128,12 @@ async function getIndexQuote(indexCode: string) {
   
   if (indexCode in INDEX_MARKET_MAP) {
     market = INDEX_MARKET_MAP[indexCode]
-  } else if (indexCode.startsWith('000') || indexCode.startsWith('6')) {
-    market = '1'
-  } else if (indexCode.startsWith('399') || indexCode.startsWith('0')) {
+  } else if (indexCode.startsWith('399')) {
     market = '0'
+  } else if (indexCode.startsWith('000')) {
+    market = '0'
+  } else if (indexCode.startsWith('6')) {
+    market = '1'
   } else if (indexCode.startsWith('H') && indexCode.length <= 6) {
     market = '100'
   } else if (indexCode.startsWith('AU')) {
@@ -167,10 +169,15 @@ async function getIndexKline(indexCode: string, count: number = 30) {
   
   if (indexCode in INDEX_MARKET_MAP) {
     market = INDEX_MARKET_MAP[indexCode]
-  } else if (indexCode.startsWith('000') || indexCode.startsWith('6')) {
-    market = '1'
-  } else if (indexCode.startsWith('399') || indexCode.startsWith('0')) {
+  } else if (indexCode.startsWith('399')) {
+    market = '0'  // 深市指数 399开头
+  } else if (indexCode.startsWith('000') && indexCode.length === 6) {
+    // 000开头需要细分：000001上海，000300上海，000001是上海指数
+    // 但000824是中证创新指数，属于深圳
+    // 通用规则：纯数字000xxx且非000001/000300/000688/000905等常见指数，用深圳
     market = '0'
+  } else if (indexCode.startsWith('6')) {
+    market = '1'
   } else if (indexCode.startsWith('H') && indexCode.length <= 6) {
     market = '100'
   } else if (indexCode === 'AU9999') {
@@ -269,9 +276,17 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      // 匹配指数涨跌幅
+      // 匹配指数涨跌幅 - 添加日期兼容处理
       for (const ik of indexKlineData) {
+        // 直接匹配
         if (ik.date === nav.date) {
+          indexChange = ik.change_percent
+          break
+        }
+        // 尝试标准化匹配 (处理2024-01-15 vs 2024/01/15 或其他格式差异)
+        const navDateNorm = nav.date?.replace(/\//g, '-')
+        const ikDateNorm = ik.date?.replace(/\//g, '-')
+        if (navDateNorm && ikDateNorm && (navDateNorm === ikDateNorm || navDateNorm.substring(0, 10) === ikDateNorm.substring(0, 10))) {
           indexChange = ik.change_percent
           break
         }
