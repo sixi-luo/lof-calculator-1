@@ -325,6 +325,16 @@ export async function GET(request: NextRequest) {
       }
     }
     
+    // 调试日志
+    console.log('===== DEBUG =====')
+    console.log('customIndexCode:', customIndexCode)
+    console.log('indexCodeToUse:', indexCodeToUse)
+    console.log('indexData:', indexData)
+    console.log('indexKlineData length:', indexKlineData?.length)
+    console.log('indexKlineData first 3:', indexKlineData?.slice(0, 3))
+    console.log('navHistory dates:', navHistory.slice(0, 3).map(n => n.date))
+    console.log('klineData dates:', klineData.slice(0, 3).map(k => k.date))
+    
     return NextResponse.json({
       nav: navData,
       market: marketData,
