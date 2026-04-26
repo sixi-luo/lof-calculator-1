@@ -331,7 +331,6 @@ export async function GET(request: NextRequest) {
     console.log('indexCodeToUse:', indexCodeToUse)
     console.log('indexData:', indexData)
     console.log('indexKlineData length:', indexKlineData?.length)
-    console.log('indexKlineData first 3:', indexKlineData?.slice(0, 3))
     console.log('navHistory dates:', navHistory.slice(0, 3).map(n => n.date))
     console.log('klineData dates:', klineData.slice(0, 3).map(k => k.date))
     
@@ -342,6 +341,12 @@ export async function GET(request: NextRequest) {
       tracking: trackingInfo,
       index: indexData,
       index_history: indexKlineData,
+      _debug: {
+        customIndexCode,
+        indexCodeToUse,
+        indexDataExists: !!indexData && Object.keys(indexData).length > 0,
+        indexKlineDataLength: indexKlineData?.length || 0,
+      },
       data_sources: {
         nav: 'http',
         market: 'http',
