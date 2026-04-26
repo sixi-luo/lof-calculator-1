@@ -257,6 +257,10 @@ export async function GET(request: NextRequest) {
       indexCodeToUse ? getIndexKline(indexCodeToUse, 30) : Promise.resolve([]),
     ])
     
+    // 调试
+    console.log('indexData:', indexData)
+    console.log('indexKlineData length:', indexKlineData?.length, 'first 3:', indexKlineData?.slice(0, 3))
+    
     const navData = navHistory[0] || {}
     if (navData && marketData.name) {
       navData.name = marketData.name
@@ -283,10 +287,10 @@ export async function GET(request: NextRequest) {
           indexChange = ik.change_percent
           break
         }
-        // 尝试标准化匹配 (处理2024-01-15 vs 2024/01/15 或其他格式差异)
+        // 尝试标准化匹配
         const navDateNorm = nav.date?.replace(/\//g, '-')
         const ikDateNorm = ik.date?.replace(/\//g, '-')
-        if (navDateNorm && ikDateNorm && (navDateNorm === ikDateNorm || navDateNorm.substring(0, 10) === ikDateNorm.substring(0, 10))) {
+        if (navDateNorm && ikDateNorm && navDateNorm === ikDateNorm) {
           indexChange = ik.change_percent
           break
         }
@@ -304,15 +308,11 @@ export async function GET(request: NextRequest) {
       })
     }
     
-    // 更新tracking信息
-    if (isCustomIndex) {
-      trackingInfo = {
-        index_code: customIndexCode,
-        index_name: indexData.name || '自定义指数',
-        coefficient: 0.95,
-        is_custom: true,
-      }
-    }
+// 调试信息
+    console.log('indexCodeToUse:', indexCodeToUse)
+    console.log('indexKlineData sample:', indexKlineData.slice(0, 3))
+    console.log('navHistory sample:', navHistory.slice(0, 3))
+    console.log('历史数据index_change:', history.slice(0, 3).map(h => h.index_change))
     
     return NextResponse.json({
       nav: navData,
