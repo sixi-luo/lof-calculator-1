@@ -122,108 +122,108 @@ async function getStockKline(code: string, count: number = 30) {
   }).reverse()
 }
 
-// 获取指数实时行情
-async function getIndexQuote(indexCode: string) {
-  let market: string
-  
+// 获取指数市场列表 - 按优先级尝试不同市场
+function getIndexMarkets(indexCode: string): string[] {
+  // 已知港股/美股指数
   if (indexCode in INDEX_MARKET_MAP) {
-    market = INDEX_MARKET_MAP[indexCode]
-  } else if (indexCode.startsWith('399')) {
-    market = '0'
-  } else if (indexCode.startsWith('000')) {
-    market = '0'
-  } else if (indexCode.startsWith('6')) {
-    market = '1'
-  } else if (indexCode.startsWith('H') && indexCode.length <= 6) {
-    market = '100'
-  } else if (indexCode.startsWith('AU')) {
-    return {}
-  } else {
-    market = '100'
+    return [INDEX_MARKET_MAP[indexCode], '100']
   }
   
-  const secid = `${market}.${indexCode}`
-  const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f57,f58,f43,f169,f170,f60&ut=fa5fd1943c7b386f172d6893dbfba10b`
-  const text = await fetchURL(url)
-  if (!text) return {}
-  
-  const data = JSON.parse(text)
-  if (!data.data) return {}
-  
-  const d = data.data
-  const priceDivisor = market === '100' ? 1 : 100
-  
-  return {
-    code: d.f57 || indexCode,
-    name: d.f58 || '',
-    price: (d.f43 || 0) / priceDivisor,
-    change_percent: (d.f170 || 0) / 100,
-    change: (d.f169 || 0) / priceDivisor,
-    prev_close: (d.f60 || 0) / priceDivisor,
+  // 纯数字A股指数：优先深市，再沪市
+  if (/^\d{6}$/.test(indexCode)) {
+    if (indexCode.startsWith('399') || indexCode.startsWith('0')) {
+      return ['0', '1']
+    } else if (indexCode.startsWith('6')) {
+      return ['1', '0']
+    } else {
+      return ['0', '1']
+    }
   }
+  
+  // 港股指数
+  if (indexCode.startsWith('H') && indexCode.length <= 6) {
+    return ['100', '0', '1']
+  }
+  
+  // 其他默认港股/美股市场
+  return ['100', '0', '1']
 }
 
-// 获取指数K线
-async function getIndexKline(indexCode: string, count: number = 30) {
-  let market: string
+// 获取指数实时行情 - 带市场试换
+async function getIndexQuote(indexCode: string) {
+  // 优先尝试的市场顺序
+  const markets = getIndexMarkets(indexCode)
   
-  if (indexCode in INDEX_MARKET_MAP) {
-    market = INDEX_MARKET_MAP[indexCode]
-  } else if (indexCode.startsWith('399')) {
-    market = '0'  // 深市指数 399开头
-  } else if (indexCode.startsWith('000') && indexCode.length === 6) {
-    // 000开头需要细分：000001上海，000300上海，000001是上海指数
-    // 但000824是中证创新指数，属于深圳
-    // 通用规则：纯数字000xxx且非000001/000300/000688/000905等常见指数，用深圳
-    market = '0'
-  } else if (indexCode.startsWith('6')) {
-    market = '1'
-  } else if (indexCode.startsWith('H') && indexCode.length <= 6) {
-    market = '100'
-  } else if (indexCode === 'AU9999') {
-    return []
-  } else if (indexCode.startsWith('CL')) {
-    return []
-  } else {
-    market = '100'
+  for (const market of markets) {
+    const secid = `${market}.${indexCode}`
+    const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f57,f58,f43,f169,f170,f60&ut=fa5fd1943c7b386f172d6893dbfba10b`
+    const text = await fetchURL(url)
+    if (!text) continue
+    
+    const data = JSON.parse(text)
+    if (!data.data) continue
+    
+    const d = data.data
+    const priceDivisor = market === '100' ? 1 : 100
+    
+    return {
+      code: d.f57 || indexCode,
+      name: d.f58 || '',
+      price: (d.f43 || 0) / priceDivisor,
+      change_percent: (d.f170 || 0) / 100,
+      change: (d.f169 || 0) / priceDivisor,
+      prev_close: (d.f60 || 0) / priceDivisor,
+    }
   }
   
-  const secid = `${market}.${indexCode}`
-  const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=1&end=20500101&lmt=${count + 1}`
-  const text = await fetchURL(url)
-  if (!text) return []
+  return {}
+}
+
+// 获取指数K线 - 带市场试换
+async function getIndexKline(indexCode: string, count: number = 30) {
+  // 优先尝试的市场顺序
+  const markets = getIndexMarkets(indexCode)
   
-  const data = JSON.parse(text)
-  if (!data.data?.klines) return []
-  
-  const klines = data.data.klines
-  const result = []
-  
-  for (let i = 0; i < klines.length; i++) {
-    const parts = klines[i].split(',')
-    const date = parts[0]
-    const close = parseFloat(parts[2])
+  for (const market of markets) {
+    const secid = `${market}.${indexCode}`
+    const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=1&end=20500101&lmt=${count + 1}`
+    const text = await fetchURL(url)
+    if (!text) continue
     
-    let changePercent = null
-    if (i > 0) {
-      const prevParts = klines[i - 1].split(',')
-      const prevClose = parseFloat(prevParts[2])
-      if (close && prevClose && prevClose > 0) {
-        changePercent = parseFloat(((close - prevClose) / prevClose * 100).toFixed(2))
+    const data = JSON.parse(text)
+    if (!data.data?.klines) continue
+    
+    const klines = data.data.klines
+    const result = []
+    
+    for (let i = 0; i < klines.length; i++) {
+      const parts = klines[i].split(',')
+      const date = parts[0]
+      const close = parseFloat(parts[2])
+      
+      let changePercent = null
+      if (i > 0) {
+        const prevParts = klines[i - 1].split(',')
+        const prevClose = parseFloat(prevParts[2])
+        if (close && prevClose && prevClose > 0) {
+          changePercent = parseFloat(((close - prevClose) / prevClose * 100).toFixed(2))
+        }
       }
+      
+      result.push({
+        date,
+        open: parseFloat(parts[1]),
+        close,
+        high: parseFloat(parts[3]),
+        low: parseFloat(parts[4]),
+        change_percent: changePercent,
+      })
     }
     
-    result.push({
-      date,
-      open: parseFloat(parts[1]),
-      close,
-      high: parseFloat(parts[3]),
-      low: parseFloat(parts[4]),
-      change_percent: changePercent,
-    })
+    return result
   }
   
-  return result
+  return []
 }
 
 // 获取追踪指数
